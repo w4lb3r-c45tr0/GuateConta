@@ -176,4 +176,18 @@ class AdminSQLiteOpenHelper(context: Context) : SQLiteOpenHelper(context, DATABA
         db.execSQL("DELETE FROM sqlite_sequence WHERE name='$TABLA_TRANSACCIONES'")
         db.close()
     }
+    // Borra el nombre registrado manteniendo los registros contables si se desea
+    fun cerrarSesionUsuario() {
+        val db = writableDatabase
+        db.execSQL("DELETE FROM usuario")
+        db.close()
+    }
+
+    // Borra absolutamente todo: usuario y transacciones
+    fun eliminarCuentaYDatos() {
+        val db = writableDatabase
+        db.execSQL("DELETE FROM usuario")
+        db.execSQL("DELETE FROM transacciones")
+        db.close()
+    }
 }

@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -46,9 +47,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFFF8F9FA)) {
-                    AppGuateConta()
+            val sistemaEsOscuro = isSystemInDarkTheme()
+            var esModoOscuro by remember { mutableStateOf(sistemaEsOscuro) }
+
+            val esquemaColores = if (esModoOscuro) darkColorScheme() else lightColorScheme()
+            val colorFondo = if (esModoOscuro) Color(0xFF121212) else Color(0xFFF8F9FA)
+
+            MaterialTheme(colorScheme = esquemaColores) {
+                Surface(modifier = Modifier.fillMaxSize(), color = colorFondo) {
+                    AppGuateConta(
+                        esModoOscuro = esModoOscuro,
+                        onCambiarModoOscuro = { esModoOscuro = it }
+                    )
                 }
             }
         }
@@ -56,7 +66,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppGuateConta() {
+fun AppGuateConta(esModoOscuro: Boolean, onCambiarModoOscuro: (Boolean) -> Unit) {
     val context = LocalContext.current
     val dbHelper = remember { AdminSQLiteOpenHelper(context) }
     var nombreUsuario by remember { mutableStateOf(dbHelper.obtenerNombreUsuario()) }
@@ -67,7 +77,12 @@ fun AppGuateConta() {
             nombreUsuario = nuevoNombre
         })
     } else {
-        PantallaConPestañas(nombreUsuario = nombreUsuario!!, dbHelper = dbHelper)
+        PantallaConPestañas(
+            nombreUsuario = nombreUsuario!!,
+            dbHelper = dbHelper,
+            esModoOscuro = esModoOscuro,
+            onCambiarModoOscuro = onCambiarModoOscuro
+        )
     }
 }
 
@@ -109,32 +124,48 @@ fun PantallaBienvenida(onNombreGuardado: (String) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaConPestañas(nombreUsuario: String, dbHelper: AdminSQLiteOpenHelper) {
+fun PantallaConPestañas(
+    nombreUsuario: String,
+    dbHelper: AdminSQLiteOpenHelper,
+    esModoOscuro: Boolean,
+    onCambiarModoOscuro: (Boolean) -> Unit
+) {
     var pestañaSeleccionada by remember { mutableIntStateOf(0) }
 
     Scaffold(
         bottomBar = {
-            NavigationBar(containerColor = Color.White) {
+            NavigationBar {
                 NavigationBarItem(
                     selected = pestañaSeleccionada == 0,
                     onClick = { pestañaSeleccionada = 0 },
-                    icon = { Text("Dashboard", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+                    icon = { Text("Dashboard", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
                     label = { Text("Inicio") }
                 )
                 NavigationBarItem(
                     selected = pestañaSeleccionada == 1,
                     onClick = { pestañaSeleccionada = 1 },
-                    icon = { Text("Auditoría", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+                    icon = { Text("Auditoría", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
                     label = { Text("Historial") }
+                )
+                NavigationBarItem(
+                    selected = pestañaSeleccionada == 2,
+                    onClick = { pestañaSeleccionada = 2 },
+                    icon = { Text("Ajustes", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
+                    label = { Text("Perfil") }
                 )
             }
         }
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues)) {
-            if (pestañaSeleccionada == 0) {
-                PantallaInicio(nombreUsuario = nombreUsuario, dbHelper = dbHelper)
-            } else {
-                PantallaHistorialAvanzado(nombreUsuario = nombreUsuario, dbHelper = dbHelper)
+            when (pestañaSeleccionada) {
+                0 -> PantallaInicio(nombreUsuario = nombreUsuario, dbHelper = dbHelper)
+                1 -> PantallaHistorialAvanzado(nombreUsuario = nombreUsuario, dbHelper = dbHelper)
+                2 -> PantallaAjustes(
+                    nombreUsuario = nombreUsuario,
+                    dbHelper = dbHelper,
+                    esModoOscuro = esModoOscuro,
+                    onCambiarModoOscuro = onCambiarModoOscuro
+                )
             }
         }
     }
@@ -187,7 +218,6 @@ fun PantallaInicio(nombreUsuario: String, dbHelper: AdminSQLiteOpenHelper) {
     val totalIngresos = listaHistorial.filter { it.tipo == "INGRESO" }.sumOf { it.monto }
     val totalGastos = listaHistorial.filter { it.tipo == "GASTO" }.sumOf { it.monto }
 
-    // DUALIDAD DIRECTA: NORMAL vs ALERTA
     val imagenMascota = if (balanceActual < 0) R.drawable.don_quetzalito_alerta else R.drawable.don_quetzalito
 
     val speechLauncher = rememberLauncherForActivityResult(
@@ -235,7 +265,7 @@ fun PantallaInicio(nombreUsuario: String, dbHelper: AdminSQLiteOpenHelper) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = saludo, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+                    Text(text = saludo, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Text(text = "Resumen de Ejercicio Fiscal", fontSize = 12.sp, color = Color.Gray)
                 }
                 Image(
@@ -256,7 +286,7 @@ fun PantallaInicio(nombreUsuario: String, dbHelper: AdminSQLiteOpenHelper) {
                     }
                 }
 
-                Card(modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Card(modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text("INGRESOS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(6.dp))
@@ -264,7 +294,7 @@ fun PantallaInicio(nombreUsuario: String, dbHelper: AdminSQLiteOpenHelper) {
                     }
                 }
 
-                Card(modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Card(modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text("GASTOS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(6.dp))
@@ -275,9 +305,9 @@ fun PantallaInicio(nombreUsuario: String, dbHelper: AdminSQLiteOpenHelper) {
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Evolución del saldo", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+                    Text("Evolución del saldo", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Canvas(modifier = Modifier.fillMaxWidth().height(80.dp)) {
@@ -319,7 +349,7 @@ fun PantallaInicio(nombreUsuario: String, dbHelper: AdminSQLiteOpenHelper) {
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         OutlinedTextField(
@@ -414,7 +444,6 @@ fun PantallaInicio(nombreUsuario: String, dbHelper: AdminSQLiteOpenHelper) {
     }
 }
 
-// --- PESTAÑA HISTORIAL AVANZADO ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PantallaHistorialAvanzado(nombreUsuario: String, dbHelper: AdminSQLiteOpenHelper) {
@@ -472,7 +501,7 @@ fun PantallaHistorialAvanzado(nombreUsuario: String, dbHelper: AdminSQLiteOpenHe
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Historial & Auditoría", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+                Text("Historial & Auditoría", fontSize = 20.sp, fontWeight = FontWeight.Bold)
 
                 Row {
                     Button(
@@ -527,7 +556,6 @@ fun PantallaHistorialAvanzado(nombreUsuario: String, dbHelper: AdminSQLiteOpenHe
                         .fillMaxWidth()
                         .padding(vertical = 3.dp)
                         .clickable { transaccionAEditar = item },
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Row(
@@ -639,8 +667,8 @@ fun PantallaHistorialAvanzado(nombreUsuario: String, dbHelper: AdminSQLiteOpenHe
     if (mostrarConfirmacionCierre) {
         AlertDialog(
             onDismissRequest = { mostrarConfirmacionCierre = false },
-            title = { Text("¿Reiniciar Historial Contable?") },
-            text = { Text("¿Deseas borrar todos los registros contables?") },
+            title = { Text("Reiniciar Ejercicio") },
+            text = { Text("¿Deseas borrar todos los registros contables del ejercicio?") },
             confirmButton = {
                 TextButton(onClick = {
                     dbHelper.vaciarTodasLasTransacciones()
@@ -651,5 +679,145 @@ fun PantallaHistorialAvanzado(nombreUsuario: String, dbHelper: AdminSQLiteOpenHe
             },
             dismissButton = { TextButton(onClick = { mostrarConfirmacionCierre = false }) { Text("Cancelar") } }
         )
+    }
+}
+
+// --- PESTAÑA DE AJUSTES Y CONFIGURACIÓN ---
+@Composable
+fun PantallaAjustes(
+    nombreUsuario: String,
+    dbHelper: AdminSQLiteOpenHelper,
+    esModoOscuro: Boolean,
+    onCambiarModoOscuro: (Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    var mostrarConfirmarCerrarSesion by remember { mutableStateOf(false) }
+    var mostrarConfirmarEliminarCuenta by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(40.dp))
+
+        Image(
+            painter = painterResource(id = R.drawable.don_quetzalito),
+            contentDescription = "Perfil Don Quetzalito",
+            modifier = Modifier.size(85.dp)
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(text = nombreUsuario, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text(text = "Contribuyente Registrado", fontSize = 12.sp, color = Color.Gray)
+
+        Spacer(modifier = Modifier.height(25.dp))
+
+        // OPCCIÓN: MODO OSCURO (SWITCH)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Modo Oscuro", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Cambiar tema de la interfaz", fontSize = 11.sp, color = Color.Gray)
+                }
+                Switch(
+                    checked = esModoOscuro,
+                    onCheckedChange = { onCambiarModoOscuro(it) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // INFORMACIÓN Y VERSIÓN DE LA APP
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Información de GuateConta", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF2563EB))
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("Versión: 1.0.0 (Producción Android)", fontSize = 11.sp)
+                Text("Régimen Fiscal: General (12% IVA Guatemala)", fontSize = 11.sp)
+                Text("Almacenamiento: Base de datos SQLite Local", fontSize = 11.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(25.dp))
+
+        // BOTÓN CERRAR SESIÓN
+        Button(
+            onClick = { mostrarConfirmarCerrarSesion = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+            shape = RoundedCornerShape(10.dp)
+        ) {
+            Text("Cerrar Sesión", color = Color.White, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // BOTÓN ELIMINAR CUENTA
+        OutlinedButton(
+            onClick = { mostrarConfirmarEliminarCuenta = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFDC2626)),
+            shape = RoundedCornerShape(10.dp)
+        ) {
+            Text("Eliminar Cuenta y Borrar Datos", fontWeight = FontWeight.Bold)
+        }
+
+        // DIÁLOGOS DE CONFIRMACIÓN
+        if (mostrarConfirmarCerrarSesion) {
+            AlertDialog(
+                onDismissRequest = { mostrarConfirmarCerrarSesion = false },
+                title = { Text("Cerrar Sesión") },
+                text = { Text("¿Deseas salir de la cuenta de '$nombreUsuario'?") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        dbHelper.cerrarSesionUsuario()
+                        (context as? android.app.Activity)?.recreate()
+                    }) {
+                        Text("Aceptar", color = Color(0xFF2563EB))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { mostrarConfirmarCerrarSesion = false }) {
+                        Text("Cancelar")
+                    }
+                }
+            )
+        }
+
+        if (mostrarConfirmarEliminarCuenta) {
+            AlertDialog(
+                onDismissRequest = { mostrarConfirmarEliminarCuenta = false },
+                title = { Text("¿Eliminar Cuenta Permanentemente?") },
+                text = { Text("Esta acción borrará la cuenta de '$nombreUsuario' y TODOS los asientos contables registrados.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        dbHelper.eliminarCuentaYDatos()
+                        Toast.makeText(context, "Cuenta y datos eliminados", Toast.LENGTH_SHORT).show()
+                        (context as? android.app.Activity)?.recreate()
+                    }) {
+                        Text("Eliminar Todo", color = Color(0xFFDC2626))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { mostrarConfirmarEliminarCuenta = false }) {
+                        Text("Cancelar")
+                    }
+                }
+            )
+        }
     }
 }
