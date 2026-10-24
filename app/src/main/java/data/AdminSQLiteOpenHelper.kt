@@ -5,11 +5,11 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-class AdminSQLiteOpenHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+class AdminSQLiteOpenHelper(context: Context) :
+    SQLiteOpenHelper(context, "GuateContaDB", null, 1) {
 
     data class Transaccion(
         val id: Int,
@@ -19,112 +19,126 @@ class AdminSQLiteOpenHelper(context: Context) : SQLiteOpenHelper(context, DATABA
         val impuesto: Double,
         val tipo: String,
         val categoria: String,
-        val fechaLegible: String,
-        val fechaIso: String
+        val fechaIso: String,
+        val fechaLegible: String
     )
 
-    companion object {
-        private const val DATABASE_NAME = "GuateConta.db"
-        private const val DATABASE_VERSION = 4
+    override fun onCreate(db: SQLiteDatabase) {
+        // Tabla de usuario
+        db.execSQL("CREATE TABLE usuario (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT)")
 
-        private const val TABLA_PERFIL = "perfil_usuario"
-        private const val TABLA_TRANSACCIONES = "transacciones"
-
-        private const val KEY_ID = "id"
-        private const val KEY_DESCRIPCION = "descripcion"
-        private const val KEY_MONTO = "monto"
-        private const val KEY_BASE = "base_imponible"
-        private const val KEY_IMPUESTO = "impuesto"
-        private const val KEY_TIPO = "tipo"
-        private const val KEY_CATEGORIA = "categoria"
-        private const val KEY_FECHA = "fecha"
-        private const val KEY_FECHA_ISO = "fecha_iso"
+        // Tabla de transacciones
+        db.execSQL(
+            """
+            CREATE TABLE transacciones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                descripcion TEXT,
+                monto REAL,
+                base_imponible REAL,
+                impuesto REAL,
+                tipo TEXT,
+                categoria TEXT,
+                fecha_iso TEXT,
+                fecha_legible TEXT
+            )
+            """.trimIndent()
+        )
     }
 
-    override fun onCreate(db: SQLiteDatabase?) {
-        val createPerfilTable = "CREATE TABLE $TABLA_PERFIL (id INTEGER PRIMARY KEY, nombre TEXT)"
-        val createTransaccionesTable = ("CREATE TABLE $TABLA_TRANSACCIONES ("
-                + "$KEY_ID INTEGER PRIMARY KEY AUTOINCREMENT, "
-                + "$KEY_DESCRIPCION TEXT, "
-                + "$KEY_MONTO REAL, "
-                + "$KEY_BASE REAL, "
-                + "$KEY_IMPUESTO REAL, "
-                + "$KEY_TIPO TEXT, "
-                + "$KEY_CATEGORIA TEXT, "
-                + "$KEY_FECHA TEXT, "
-                + "$KEY_FECHA_ISO TEXT)")
-
-        db?.execSQL(createPerfilTable)
-        db?.execSQL(createTransaccionesTable)
-    }
-
-    override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
-        db?.execSQL("DROP TABLE IF EXISTS $TABLA_PERFIL")
-        db?.execSQL("DROP TABLE IF EXISTS $TABLA_TRANSACCIONES")
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        db.execSQL("DROP TABLE IF EXISTS usuario")
+        db.execSQL("DROP TABLE IF EXISTS transacciones")
         onCreate(db)
     }
 
+    // --- GESTIÓN DE USUARIO ---
+
     fun guardarNombreUsuario(nombre: String) {
         val db = writableDatabase
-        val valores = ContentValues().apply {
-            put("id", 1)
+        // Primero borramos cualquier registro previo para evitar nombres duplicados acumulados
+        db.delete("usuario", null, null)
+        val values = ContentValues().apply {
             put("nombre", nombre)
         }
-        db.insertWithOnConflict(TABLA_PERFIL, null, valores, SQLiteDatabase.CONFLICT_REPLACE)
+        db.insert("usuario", null, values)
         db.close()
     }
 
     fun obtenerNombreUsuario(): String? {
         val db = readableDatabase
-        val cursor = db.rawQuery("SELECT nombre FROM $TABLA_PERFIL WHERE id = 1", null)
         var nombre: String? = null
-        if (cursor.moveToFirst()) nombre = cursor.getString(0)
+        val cursor = db.rawQuery("SELECT nombre FROM usuario LIMIT 1", null)
+        if (cursor.moveToFirst()) {
+            nombre = cursor.getString(0)
+        }
         cursor.close()
         db.close()
         return nombre
     }
 
-    fun guardarTransaccion(descripcion: String, monto: Double, base: Double, impuesto: Double, tipo: String, categoria: String): Long {
+    fun cerrarSesionUsuario() {
         val db = writableDatabase
-        val hoy = Date()
-        val fechaLegible = SimpleDateFormat("dd MMM", Locale.getDefault()).format(hoy)
-        val fechaIso = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(hoy)
-
-        val valores = ContentValues().apply {
-            put(KEY_DESCRIPCION, descripcion)
-            put(KEY_MONTO, monto)
-            put(KEY_BASE, base)
-            put(KEY_IMPUESTO, impuesto)
-            put(KEY_TIPO, tipo)
-            put(KEY_CATEGORIA, categoria)
-            put(KEY_FECHA, fechaLegible)
-            put(KEY_FECHA_ISO, fechaIso)
-        }
-        val idResult = db.insert(TABLA_TRANSACCIONES, null, valores)
+        db.delete("usuario", null, null)
+        db.delete("transacciones", null, null) // Vacía las transacciones para iniciar desde cero
         db.close()
-        return idResult
+    }
+
+    fun eliminarCuentaYDatos() {
+        val db = writableDatabase
+        db.delete("usuario", null, null)
+        db.delete("transacciones", null, null)
+        db.close()
+    }
+
+    // --- GESTIÓN DE TRANSACCIONES ---
+
+    fun guardarTransaccion(
+        descripcion: String,
+        monto: Double,
+        baseImponible: Double,
+        impuesto: Double,
+        tipo: String,
+        categoria: String
+    ) {
+        val db = writableDatabase
+        val sdfIso = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val sdfLegible = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        val ahora = Date()
+
+        val values = ContentValues().apply {
+            put("descripcion", descripcion)
+            put("monto", monto)
+            put("base_imponible", baseImponible)
+            put("impuesto", impuesto)
+            put("tipo", tipo)
+            put("categoria", categoria)
+            put("fecha_iso", sdfIso.format(ahora))
+            put("fecha_legible", sdfLegible.format(ahora))
+        }
+
+        db.insert("transacciones", null, values)
+        db.close()
     }
 
     fun obtenerTodasLasTransacciones(): List<Transaccion> {
         val lista = mutableListOf<Transaccion>()
         val db = readableDatabase
-        val cursor = db.rawQuery("SELECT $KEY_ID, $KEY_DESCRIPCION, $KEY_MONTO, $KEY_BASE, $KEY_IMPUESTO, $KEY_TIPO, $KEY_CATEGORIA, $KEY_FECHA, $KEY_FECHA_ISO FROM $TABLA_TRANSACCIONES ORDER BY $KEY_ID DESC", null)
+        val cursor = db.rawQuery("SELECT id, descripcion, monto, base_imponible, impuesto, tipo, categoria, fecha_iso, fecha_legible FROM transacciones ORDER BY id DESC", null)
 
         if (cursor.moveToFirst()) {
             do {
-                lista.add(
-                    Transaccion(
-                        id = cursor.getInt(0),
-                        descripcion = cursor.getString(1),
-                        monto = cursor.getDouble(2),
-                        baseImponible = cursor.getDouble(3),
-                        impuesto = cursor.getDouble(4),
-                        tipo = cursor.getString(5),
-                        categoria = cursor.getString(6),
-                        fechaLegible = cursor.getString(7) ?: "Hoy",
-                        fechaIso = cursor.getString(8) ?: ""
-                    )
+                val item = Transaccion(
+                    id = cursor.getInt(0),
+                    descripcion = cursor.getString(1),
+                    monto = cursor.getDouble(2),
+                    baseImponible = cursor.getDouble(3),
+                    impuesto = cursor.getDouble(4),
+                    tipo = cursor.getString(5),
+                    categoria = cursor.getString(6),
+                    fechaIso = cursor.getString(7),
+                    fechaLegible = cursor.getString(8)
                 )
+                lista.add(item)
             } while (cursor.moveToNext())
         }
         cursor.close()
@@ -133,61 +147,53 @@ class AdminSQLiteOpenHelper(context: Context) : SQLiteOpenHelper(context, DATABA
     }
 
     fun obtenerBalanceTotal(): Double {
-        var total = 0.0
         val db = readableDatabase
-        val cursor = db.rawQuery("SELECT $KEY_MONTO, $KEY_TIPO FROM $TABLA_TRANSACCIONES", null)
+        var balance = 0.0
+        val cursor = db.rawQuery("SELECT tipo, monto FROM transacciones", null)
+
         if (cursor.moveToFirst()) {
             do {
-                val monto = cursor.getDouble(0)
-                val tipo = cursor.getString(1)
-                if (tipo == "INGRESO") total += monto else total -= monto
+                val tipo = cursor.getString(0)
+                val monto = cursor.getDouble(1)
+                if (tipo == "INGRESO") balance += monto else balance -= monto
             } while (cursor.moveToNext())
         }
         cursor.close()
         db.close()
-        return total
+        return balance
     }
 
-    fun eliminarTransaccion(id: Int): Int {
+    fun eliminarTransaccion(id: Int) {
         val db = writableDatabase
-        val filasAfectadas = db.delete(TABLA_TRANSACCIONES, "$KEY_ID = ?", arrayOf(id.toString()))
+        db.delete("transacciones", "id = ?", arrayOf(id.toString()))
         db.close()
-        return filasAfectadas
     }
 
-    fun actualizarTransaccion(id: Int, descripcion: String, monto: Double, base: Double, impuesto: Double, tipo: String, categoria: String): Int {
+    fun actualizarTransaccion(
+        id: Int,
+        descripcion: String,
+        monto: Double,
+        baseImponible: Double,
+        impuesto: Double,
+        tipo: String,
+        categoria: String
+    ) {
         val db = writableDatabase
-        val valores = ContentValues().apply {
-            put(KEY_DESCRIPCION, descripcion)
-            put(KEY_MONTO, monto)
-            put(KEY_BASE, base)
-            put(KEY_IMPUESTO, impuesto)
-            put(KEY_TIPO, tipo)
-            put(KEY_CATEGORIA, categoria)
+        val values = ContentValues().apply {
+            put("descripcion", descripcion)
+            put("monto", monto)
+            put("base_imponible", baseImponible)
+            put("impuesto", impuesto)
+            put("tipo", tipo)
+            put("categoria", categoria)
         }
-        val filasAfectadas = db.update(TABLA_TRANSACCIONES, valores, "$KEY_ID = ?", arrayOf(id.toString()))
+        db.update("transacciones", values, "id = ?", arrayOf(id.toString()))
         db.close()
-        return filasAfectadas
     }
 
     fun vaciarTodasLasTransacciones() {
         val db = writableDatabase
-        db.execSQL("DELETE FROM $TABLA_TRANSACCIONES")
-        db.execSQL("DELETE FROM sqlite_sequence WHERE name='$TABLA_TRANSACCIONES'")
-        db.close()
-    }
-    // Borra el nombre registrado manteniendo los registros contables si se desea
-    fun cerrarSesionUsuario() {
-        val db = writableDatabase
-        db.execSQL("DELETE FROM usuario")
-        db.close()
-    }
-
-    // Borra absolutamente todo: usuario y transacciones
-    fun eliminarCuentaYDatos() {
-        val db = writableDatabase
-        db.execSQL("DELETE FROM usuario")
-        db.execSQL("DELETE FROM transacciones")
+        db.delete("transacciones", null, null)
         db.close()
     }
 }

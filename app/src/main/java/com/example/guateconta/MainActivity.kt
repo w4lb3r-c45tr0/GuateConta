@@ -81,7 +81,10 @@ fun AppGuateConta(esModoOscuro: Boolean, onCambiarModoOscuro: (Boolean) -> Unit)
             nombreUsuario = nombreUsuario!!,
             dbHelper = dbHelper,
             esModoOscuro = esModoOscuro,
-            onCambiarModoOscuro = onCambiarModoOscuro
+            onCambiarModoOscuro = onCambiarModoOscuro,
+            onCerrarSesion = {
+                nombreUsuario = null // Resetear el estado redirige a PantallaBienvenida al instante
+            }
         )
     }
 }
@@ -128,7 +131,8 @@ fun PantallaConPestañas(
     nombreUsuario: String,
     dbHelper: AdminSQLiteOpenHelper,
     esModoOscuro: Boolean,
-    onCambiarModoOscuro: (Boolean) -> Unit
+    onCambiarModoOscuro: (Boolean) -> Unit,
+    onCerrarSesion: () -> Unit // <-- Añadido
 ) {
     var pestañaSeleccionada by remember { mutableIntStateOf(0) }
 
@@ -164,7 +168,8 @@ fun PantallaConPestañas(
                     nombreUsuario = nombreUsuario,
                     dbHelper = dbHelper,
                     esModoOscuro = esModoOscuro,
-                    onCambiarModoOscuro = onCambiarModoOscuro
+                    onCambiarModoOscuro = onCambiarModoOscuro,
+                    onCerrarSesion = onCerrarSesion // <-- Pasar aquí
                 )
             }
         }
@@ -688,7 +693,8 @@ fun PantallaAjustes(
     nombreUsuario: String,
     dbHelper: AdminSQLiteOpenHelper,
     esModoOscuro: Boolean,
-    onCambiarModoOscuro: (Boolean) -> Unit
+    onCambiarModoOscuro: (Boolean) -> Unit,
+    onCerrarSesion: () -> Unit // <-- Añadido
 ) {
     val context = LocalContext.current
     var mostrarConfirmarCerrarSesion by remember { mutableStateOf(false) }
@@ -713,7 +719,6 @@ fun PantallaAjustes(
 
         Spacer(modifier = Modifier.height(25.dp))
 
-        // OPCCIÓN: MODO OSCURO (SWITCH)
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
@@ -738,7 +743,6 @@ fun PantallaAjustes(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // INFORMACIÓN Y VERSIÓN DE LA APP
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
@@ -754,7 +758,6 @@ fun PantallaAjustes(
 
         Spacer(modifier = Modifier.height(25.dp))
 
-        // BOTÓN CERRAR SESIÓN
         Button(
             onClick = { mostrarConfirmarCerrarSesion = true },
             modifier = Modifier.fillMaxWidth(),
@@ -766,7 +769,6 @@ fun PantallaAjustes(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // BOTÓN ELIMINAR CUENTA
         OutlinedButton(
             onClick = { mostrarConfirmarEliminarCuenta = true },
             modifier = Modifier.fillMaxWidth(),
@@ -776,7 +778,7 @@ fun PantallaAjustes(
             Text("Eliminar Cuenta y Borrar Datos", fontWeight = FontWeight.Bold)
         }
 
-        // DIÁLOGOS DE CONFIRMACIÓN
+        // DIÁLOGO CERRAR SESIÓN
         if (mostrarConfirmarCerrarSesion) {
             AlertDialog(
                 onDismissRequest = { mostrarConfirmarCerrarSesion = false },
@@ -785,7 +787,8 @@ fun PantallaAjustes(
                 confirmButton = {
                     TextButton(onClick = {
                         dbHelper.cerrarSesionUsuario()
-                        (context as? android.app.Activity)?.recreate()
+                        mostrarConfirmarCerrarSesion = false
+                        onCerrarSesion()
                     }) {
                         Text("Aceptar", color = Color(0xFF2563EB))
                     }
@@ -798,6 +801,7 @@ fun PantallaAjustes(
             )
         }
 
+// DIÁLOGO ELIMINAR CUENTA
         if (mostrarConfirmarEliminarCuenta) {
             AlertDialog(
                 onDismissRequest = { mostrarConfirmarEliminarCuenta = false },
@@ -807,7 +811,8 @@ fun PantallaAjustes(
                     TextButton(onClick = {
                         dbHelper.eliminarCuentaYDatos()
                         Toast.makeText(context, "Cuenta y datos eliminados", Toast.LENGTH_SHORT).show()
-                        (context as? android.app.Activity)?.recreate()
+                        mostrarConfirmarEliminarCuenta = false
+                        onCerrarSesion()
                     }) {
                         Text("Eliminar Todo", color = Color(0xFFDC2626))
                     }
