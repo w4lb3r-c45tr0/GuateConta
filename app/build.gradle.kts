@@ -11,12 +11,11 @@ android {
 
     defaultConfig {
         applicationId = "com.example.guateconta"
-        minSdk = 26
-        targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        minSdk = 26              // Se actualiza a 26 para soportar íconos adaptativos (ic_launcher)
+        targetSdk = 34
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        versionCode = 2          // Compilación interna v1.1.0
+        versionName = "1.1.0"    // Nueva versión con Calendario Financiero
     }
 
     buildTypes {
